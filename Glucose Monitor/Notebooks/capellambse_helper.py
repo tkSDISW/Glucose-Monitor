@@ -9,7 +9,24 @@ import pandas as pd
 import jinja2
 
 
-
+def display_context_diagram(obj):
+    if obj.__class__.__name__ == "Entity" or \
+        obj.__class__.__name__ == "OperationalActivity" or \
+        obj.__class__.__name__ == "OperationalCapability" or \
+        obj.__class__.__name__ == "Mission" or \
+        obj.__class__.__name__ == "Capability" or \
+        obj.__class__.__name__ == "SystemFunction" or \
+        obj.__class__.__name__ == "LogicalComponent" or \
+        obj.__class__.__name__ == "ComponentExchange" or \
+        obj.__class__.__name__ == "LogicalFunction" or \
+        obj.__class__.__name__ == "FunctionalExchange" or \
+        obj.__class__.__name__ == "PhysicalComponent" or \
+        obj.__class__.__name__ == "PhysicalFunction" :
+        display.display(obj.context_diagram)
+    else :
+        display.display(Markdown(f"The object:{obj.name} cannot be displayed in a Context Diagram."))
+        
+    
 def Display_Logical_Functional_Chain_Tables(fc):
     #print(fc)
     #print()
@@ -995,7 +1012,7 @@ def Generate_Physical_Node_Components_Report( model ):
     """
     return templ
 
-def Display_Physical_Component_Report( pc ):
+def Display_Component_Report( pc ):
     template = """
     <h1>{{ node.name }} - <span style="font-size: 10px" > UUID: {{ node.uuid }} </span> </h2>
     <p>{{ node.description }}</p> 
@@ -1017,7 +1034,7 @@ def Display_Physical_Component_Report( pc ):
     {% else %}
         <p style="text-align: left;">No property values were identified.</p>
     {% endif %}   
-    {% if node.property_value_groups %}
+    {% if node.applied_property_value_groups %}
     <p  >The table below identifies property values groups of {{ node.name }}.</p>
         <table  style="border: 2px solid black; width:100% " >
             <tr>
@@ -1054,7 +1071,7 @@ def Display_Physical_Component_Report( pc ):
            </table>
          <p style="text-align: center;"><strong>Property Values Groups {{ node.name }}</strong></p>
     {% else %}
-        
+        <p style="text-align: left;">No appllied property value groups were identified.</p>
     {% endif %}
     <h3> {{ node.name }} Ports </h3>
     {% for port in node.ports %}

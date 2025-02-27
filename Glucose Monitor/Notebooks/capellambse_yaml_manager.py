@@ -6,19 +6,27 @@ class CapellaYAMLHandler:
     def __init__(self):
         self.file_name = None
         self.referenced_objects = []
-        self.yaml_content = ""
+        self.primary_objects = []
+        self.yaml_content = """
+      # YAML file for system model relationships
+      schema:
+        primary_uuid: Unique identifier for the primary object
+        ref_uuid: Unique identifier for a referenced object
+"""
         
     def get_yaml_content(self):
+        stripped_yaml_content = "\n".join([line for line in self.yaml_content.splitlines() if line.strip()])
         """Returen the Yaml content created."""
-        return self.yaml_content
+        return stripped_yaml_content
     
     def write_output_file(self):
         """Generate a file capella_model.yaml"""
         self.file_name = "capella_model.yaml"
         # Initialize the file with a header
+        stripped_yaml_content = "\n".join([line for line in self.yaml_content.splitlines() if line.strip()])
         with open(self.file_name, 'w') as f:
             f.write("# YAML file for Capella objects\n")
-            f.write(self.yaml_content + "\n")
+            f.write(stripped_yaml_content + "\n")
 
     def display(self):
         """Display the content of the yaml_content."""
@@ -27,12 +35,29 @@ class CapellaYAMLHandler:
     def generate_yaml_referenced_objects(self):
         """generate YAML content of referenced objects."""
         for ref_obj in self.referenced_objects:
-                    self.generate_yaml(ref_obj) 
-       
+            if ref_obj not in self.primary_objects :
+                self.generate_yaml(ref_obj) 
+
+    def generate_traceability_related_objects(self, model, Tstore):
+        """generate YAML content of referenced objects."""
+        #for ref_obj in self.referenced_objects:
+        #            self.generate_yaml(ref_obj)  
+        artifacts = Tstore.all_artifacts
+        for artifact in artifacts:      
+            for link in artifact.artifact_links :
+                 #print(link.link_type, link.artifact_uuid,link.model_element_uuid)
+                 model_element = model.by_uuid(link.model_element_uuid)
+                 #print("Linked Model Element",model_element.name)
+                 if model_element in self.referenced_objects or  model_element in self.primary_objects :
+                    #print("Adding Artifact",artifact.name,artifact.uuid)
+                    self.referenced_objects.append(artifact)
+                
+
+               
             
     def _track_referenced_objects(self, obj):
         """Track referenced objects to allow further expansion as primary objects."""
-        if obj.__class__.__name__ ==  "LogicalComponent" :  
+        if obj.__class__.__name__ ==  "LogicalComponent" or obj.__class__.__name__ ==  "SystemComponent"  :  
             for comp in obj.components:
                 if comp not in self.referenced_objects:
                     self.referenced_objects.append(comp)
@@ -84,15 +109,37 @@ class CapellaYAMLHandler:
                 if sm not in self.referenced_objects:
                     self.referenced_objects.append(sm)
         if obj.__class__.__name__  ==  "PhysicalComponent" and obj.nature  ==  "NODE":  
-                for dc in obj.deployed_components:
-                        if dc not in self.referenced_objects:
-                            self.referenced_objects.append(dc)
-                for physical_port in obj.physical_ports:
-                    if physical_port not in self.referenced_objects:
-                        self.referenced_objects.append(physical_port)
-                    for link in physical_port.links:
-                        if link not in self.referenced_objects:
-                            self.referenced_objects.append(link)
+            for dc in obj.deployed_components:
+                    if dc not in self.referenced_objects:
+                        self.referenced_objects.append(dc)
+            for physical_port in obj.physical_ports:
+                if physical_port not in self.referenced_objects:
+                    self.referenced_objects.append(physical_port)
+                for link in physical_port.links:
+                    if link not in self.referenced_objects:
+                        self.referenced_objects.append(link)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con)
+        if obj.__class__.__name__  ==  "PhysicalComponent" and obj.nature  ==  "BEHAVIOR":  
+            for dc in obj.deployed_components:
+                    if dc not in self.referenced_objects:
+                        self.referenced_objects.append(dc)
+            for port in obj.ports:
+                if port not in self.referenced_objects:
+                    self.referenced_objects.append(port)
+                for e in port.exchanges:
+                    if e not in self.referenced_objects:
+                        self.referenced_objects.append(e)
+                for func in obj.allocated_functions:
+                    if func not in self.referenced_objects:
+                        self.referenced_objects.append(func)
                 for apvg in obj.applied_property_value_groups:
                     if apvg not in self.referenced_objects:
                         self.referenced_objects.append(apvg)
@@ -102,70 +149,48 @@ class CapellaYAMLHandler:
                 for con in obj.constraints:
                     if con not in self.referenced_objects:
                         self.referenced_objects.append(con)
-        if obj.__class__.__name__  ==  "PhysicalComponent" and obj.nature  ==  "BEHAVIOR":  
-                for dc in obj.deployed_components:
-                        if dc not in self.referenced_objects:
-                            self.referenced_objects.append(dc)
-                for port in obj.ports:
-                    if port not in self.referenced_objects:
-                        self.referenced_objects.append(port)
-                    for e in port.exchanges:
-                        if e not in self.referenced_objects:
-                            self.referenced_objects.append(e)
-                    for func in obj.allocated_functions:
-                        if func not in self.referenced_objects:
-                            self.referenced_objects.append(func)
-                    for apvg in obj.applied_property_value_groups:
-                        if apvg not in self.referenced_objects:
-                            self.referenced_objects.append(apvg)
-                    for apv in obj.applied_property_values:
-                        if apv not in self.referenced_objects:
-                            self.referenced_objects.append(apv)
-                    for con in obj.constraints:
-                        if con not in self.referenced_objects:
-                            self.referenced_objects.append(con)
         if obj.__class__.__name__ ==  "LogicalFunction" or obj.__class__.__name__ ==  "SystemFunction" or obj.__class__.__name__ ==  "PhysicalFunction":  
-                    if obj.owner not in self.referenced_objects:
-                            self.referenced_objects.append(obj.owner)
-                    for port in obj.inputs:
-                        if port not in self.referenced_objects:
-                            self.referenced_objects.append(port)
-                        for e in port.exchanges:
-                            if e not in self.referenced_objects:
-                                self.referenced_objects.append(e)
-                    for port in obj.outputs:
-                        if port not in self.referenced_objects:
-                            self.referenced_objects.append(port)
-                        for e in port.exchanges:
-                            if e not in self.referenced_objects:
-                                self.referenced_objects.append(e)
-                    for apvg in obj.applied_property_value_groups:
-                        if apvg not in self.referenced_objects:
-                            self.referenced_objects.append(apvg)
-                    for apv in obj.applied_property_values:
-                        if apv not in self.referenced_objects:
-                            self.referenced_objects.append(apv)
-                    for con in obj.constraints:
-                        if con not in self.referenced_objects:
-                            self.referenced_objects.append(con)
+            if obj.owner not in self.referenced_objects:
+                    self.referenced_objects.append(obj.owner)
+            for port in obj.inputs:
+                if port not in self.referenced_objects:
+                    self.referenced_objects.append(port)
+                for e in port.exchanges:
+                    if e not in self.referenced_objects:
+                        self.referenced_objects.append(e)
+            for port in obj.outputs:
+                if port not in self.referenced_objects:
+                    self.referenced_objects.append(port)
+                for e in port.exchanges:
+                    if e not in self.referenced_objects:
+                        self.referenced_objects.append(e)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con)
         if obj.__class__.__name__ ==  "OperationalActivity" :  
-                    if obj.owner not in self.referenced_objects:
-                            self.referenced_objects.append(obj.owner)
-                    for ain in obj.inputs:
-                        if ain not in self.referenced_objects:
-                            self.referenced_objects.append(ain)
-                    for out in obj.outputs:
-                        if out not in self.referenced_objects:
-                            self.referenced_objects.append(out)
-                    for apvg in obj.applied_property_value_groups:
-                        if apvg not in self.referenced_objects:
-                            self.referenced_objects.append(apvg)
-                    for apv in obj.applied_property_values:
-                        if apv not in self.referenced_objects:
-                            self.referenced_objects.append(apv)
-                    for con in obj.constraints:
-                        if con not in self.referenced_objects:
-                            self.referenced_objects.append(con)
+            if obj.owner not in self.referenced_objects:
+                    self.referenced_objects.append(obj.owner)
+            for ain in obj.inputs:
+                if ain not in self.referenced_objects:
+                    self.referenced_objects.append(ain)
+            for out in obj.outputs:
+                if out not in self.referenced_objects:
+                    self.referenced_objects.append(out)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con)
         if obj.__class__.__name__ ==  "FunctionalChain" or obj.__class__.__name__ ==  "OperationalProcess" :  
             for inv in obj.involved:
                 if inv not in self.referenced_objects:
@@ -255,58 +280,236 @@ class CapellaYAMLHandler:
                     self.referenced_objects.append(con) 
 
         if obj.__class__.__name__ ==  "PropertyValueGroup" :  
-                for apvg in obj.applied_property_value_groups:
-                    if apvg not in self.referenced_objects:
-                        self.referenced_objects.append(apvg)
-                for apv in obj.applied_property_values:
-                    if apv not in self.referenced_objects:
-                        self.referenced_objects.append(apv)
-                for con in obj.constraints:
-                    if con not in self.referenced_objects:
-                        self.referenced_objects.append(con) 
-                for pvg in obj.property_value_groups:
-                    if pvg not in self.referenced_objects:
-                        self.referenced_objects.append(pvg)
-                for pv in obj.property_values:
-                    if pv not in self.referenced_objects:
-                        self.referenced_objects.append(pv)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con) 
+            for pvg in obj.property_value_groups:
+                if pvg not in self.referenced_objects:
+                    self.referenced_objects.append(pvg)
+            for pv in obj.property_values:
+                if pv not in self.referenced_objects:
+                    self.referenced_objects.append(pv)
+
+        if obj.__class__.__name__ ==  "FunctionalExchange" :
+            for ei in obj.exchange_items:
+                if ei not in self.referenced_objects:
+                    self.referenced_objects.append(ei)
+            #for fc in obj.involving_functional_chains:
+            #    if fc not in self.referenced_objects:
+            #        self.referenced_objects.append(fc)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con) 
+            for pvg in obj.property_value_groups:
+                if pvg not in self.referenced_objects:
+                    self.referenced_objects.append(pvg)
+            for pv in obj.property_values:
+                if pv not in self.referenced_objects:
+                    self.referenced_objects.append(pv)
+        if obj.__class__.__name__ ==  "Interaction" :
+            for ei in obj.exchange_items:
+                if ei not in self.referenced_objects:
+                    self.referenced_objects.append(ei)
+            #for op in obj.involving_operational_processes:
+            #    if op not in self.referenced_objects:
+            #        self.referenced_objects.append(op)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con) 
+            for pvg in obj.property_value_groups:
+                if pvg not in self.referenced_objects:
+                    self.referenced_objects.append(pvg)
+            for pv in obj.property_values:
+                if pv not in self.referenced_objects:
+                    self.referenced_objects.append(pv)
+        
+        if obj.__class__.__name__ ==  "ComponentExchange" :
+            for ei in obj.exchange_items:
+                if ei not in self.referenced_objects:
+                    self.referenced_objects.append(ei)
+            for afe in obj.allocated_functional_exchanges:
+                if afe not in self.referenced_objects:
+                    self.referenced_objects.append(afe)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con) 
+            for pvg in obj.property_value_groups:
+                if pvg not in self.referenced_objects:
+                    self.referenced_objects.append(pvg)
+            for pv in obj.property_values:
+                if pv not in self.referenced_objects:
+                    self.referenced_objects.append(pv)
+        
+        if obj.__class__.__name__ ==  "ExchangeItem" :
+            for e in obj.elements:
+                if e not in self.referenced_objects:
+                    self.referenced_objects.append(e)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con) 
+            for pvg in obj.property_value_groups:
+                if pvg not in self.referenced_objects:
+                    self.referenced_objects.append(pvg)
+            for pv in obj.property_values:
+                if pv not in self.referenced_objects:
+                    self.referenced_objects.append(pv)
+                    
+        if obj.__class__.__name__ ==  "ExchangeItemElement" :
+            if obj.abstract_type not in self.referenced_objects:
+                self.referenced_objects.append(obj.abstract_type)
+            for apvg in obj.applied_property_value_groups:
+                if apvg not in self.referenced_objects:
+                    self.referenced_objects.append(apvg)
+            for apv in obj.applied_property_values:
+                if apv not in self.referenced_objects:
+                    self.referenced_objects.append(apv)
+            for con in obj.constraints:
+                if con not in self.referenced_objects:
+                    self.referenced_objects.append(con) 
+            for pvg in obj.property_value_groups:
+                if pvg not in self.referenced_objects:
+                    self.referenced_objects.append(pvg)
+            for pv in obj.property_values:
+                if pv not in self.referenced_objects:
+                    self.referenced_objects.append(pv)
     
     def generate_yaml(self, obj):
 
         """Generate YAML for primary objects and manage references."""
         default_template = """
-    {{type}}
-      - name: {{ name }}
-        primary_uuid: {{ uuid }}
-        description : {{ description }}
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      {% if applied_property_value_groups %}applied property value groups:
+        {% for apvg in applied_property_value_groups %}
+        - name: {{ apvg.name }}
+        ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if applied_property_values %}applied property values:
+        {% for apv in applied_property_values %}
+        - name: {{ apv.name }}
+        ref_uuid : {{ apv.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if constraints %}constraints:
+      {% for cons in constraints %}
+      - name: {{ cons.name }}
+        ref_uuid : {{ cons.uuid }}
+      {% endfor %}
+      {% endif %}
+      {% if exchanges %}exchanges:
+      {% for excs in exchanges %}
+        - name: {{  e.name }}
+          ref_uuid : {{ e.uuid }}
+      {% endfor %}
+      {% endif %}
+"""
+        exchangeitemelement_template = """
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      abstract type: 
+        - name {{ abstract_type_name }}
+        ref_uuid : {{ abstract_type_uuid }}
         {% if applied_property_value_groups %}applied property value groups:
             {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
+            - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
             {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
             {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
+                - name: {{ apv.name }}
                 ref_uuid : {{ apv.uuid }}
             {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
             {% for cons in constraints %}
-              - name: {{ cons.name }}
+                - name: {{ cons.name }}
                 ref_uuid : {{ cons.uuid }}
             {% endfor %}
         {% endif %}
-        {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
-        {% endif %}
 """
+        exchangeitem_template = """
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      {% if elements %}elements:
+        {% for e in elements %}
+        - name: {{ e.name }}
+          ref_uuid : {{ e.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if applied_property_value_groups %}applied property value groups:
+        {% for apvg in applied_property_value_groups %}
+        - name: {{ apvg.name }}
+          ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if applied_property_values %}applied property values:
+        {% for apv in applied_property_values %}
+        - name: {{ apv.name }}
+        ref_uuid : {{ apv.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if constraints %}constraints:
+        {% for cons in constraints %}
+        - name: {{ cons.name }}
+          ref_uuid : {{ cons.uuid }}
+        {% endfor %}
+      {% endif %}
+
+"""
+        
+        Traceability_artifact = """
+    - name: {{ name }}
+      type: {{type}} Polarion Workitem Requirement
+      primary_uuid: {{ uuid }}
+      url : {{ url }}
+      {% if artifact_links %}linked model elements:
+      {% for link in artifact_links %}
+        - name : {{ link.name}}
+          ref_uuid : {{ link.model_element_uuid}}
+      {% endfor %}
+      {% endif %}
+"""     
         state_machine_template = """
-    {{type}}
       - name: {{ name }}
+        type:{{type}} 
         primary_uuid: {{ uuid }}
         description : {{ description }}
         regions:
@@ -324,119 +527,224 @@ class CapellaYAMLHandler:
           {% endfor %}
         {% endfor %}
 """     
-
         state_template = """
-    {{type}}
-      - name: {{ name }}
-        primary_uuid: {{ uuid }}
-        description : {{ description }}
-        outgoing transtions:
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      outgoing transtions:
         {% for og in outgoing_transitions %}
-          - name: {{ og.name }}
-            ref_uuid : {{ og.uuid }}
+        - name: {{ og.name }}
+          ref_uuid : {{ og.uuid }}
         {% endfor %}
-        incoming transtions:
+      incoming transtions:
         {% for inc in incoming_transitions %}
-          - name: {{ inc.name }}
-            ref_uuid : {{ inc.uuid }}
+        - name: {{ inc.name }}
+          ref_uuid : {{ inc.uuid }}
         {% endfor %}
-        functions:
+      functions:
         {% for func in functions %}
-          - name: {{ func.name }}
-            ref_uuid : {{ func.uuid }}
+        - name: {{ func.name }}
+          ref_uuid : {{ func.uuid }}
         {% endfor %}
-        do functions:
+      do functions:
         {% for da in do_activity %}
-          - name: {{ da.name }}
-            ref_uuid : {{ da.uuid }}
+        - name: {{ da.name }}
+          ref_uuid : {{ da.uuid }}
         {% endfor %}
-        entry functions:
+      entry functions:
         {% for en in entries %}
-          - name: {{ en.name }}
-            ref_uuid : {{ en.uuid }}
+        - name: {{ en.name }}
+          ref_uuid : {{ en.uuid }}
         {% endfor %}
-        exits functions:
+      exits functions:
         {% for ex in exits %}
-          - name: {{ ex.name }}
-            ref_uuid : {{ ex.uuid }}
+        - name: {{ ex.name }}
+          ref_uuid : {{ ex.uuid }}
         {% endfor %}
 """    
         psusdo_state_template = """
-    {{type}}
-      - name: {{ name }}
-        primary_uuid: {{ uuid }}
-        description : {{ description }}
-        outgoing transtions:
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      outgoing transtions:
         {% for og in outgoing_transitions %}
-          - name: {{ og.name }}
-            ref_uuid : {{ og.uuid }}
+        - name: {{ og.name }}
+          ref_uuid : {{ og.uuid }}
         {% endfor %}
 """   
         
         transition_template = """
-    {{type}}
-      - name: {{ name }}
-        primary_uuid: {{ uuid }}
-        description : {{ description }}
-        guard: {{ guard }}
-        triggers:
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      guard: {{ guard }}
+      triggers:
         {% for t in triggers %}
-          - name: {{ t.name }}
-            ref_uuid : {{ t.uuid }}
+        - name: {{ t.name }}
+          ref_uuid : {{ t.uuid }}
         {% endfor %}
         source state:
-          - name: {{ source_name }}
-            ref_uuid : {{ source_uuid }}
+        - name: {{ source_name }}
+          ref_uuid : {{ source_uuid }}
         destination state:
           - name: {{ dest_name }}
             ref_uuid : {{ dest_uuid }}
-        after function:
+        after functions:
         {% for ef in effects %}
-          - name: {{ ef.name }}
-            ref_uuid : {{ ef.uuid }}
+            - name: {{ ef.name }}
+              ref_uuid : {{ ef.uuid }}
         {% endfor %}
-
 """  
-        
+        interaction_template = """
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      source activity:
+          - name: {{ source_activity }}
+            ref_uuid: {{ source_activity_uuid }}
+      target activity:
+          - name: {{ target_activity }}
+            ref_uuid: {{ target_activity_uuid }}
+      {% if involving_ops %}involving operational processes:
+        {% for op in involving_ops %}
+        - name: {{ op.name }}
+          ref_uuid : {{ op.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if applied_property_value_groups %}applied property value groups:
+        {% for apvg in applied_property_value_groups %}
+        - name: {{ apvg.name }}
+          ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if exchanges_items %}exchanges items:
+            {% for ei in exchange_items %}
+            - name: {{  ei.name }}
+              ref_uuid : {{ ei.uuid }}
+            {% endfor %}
+      {% endif %}
+      {% if applied_property_values %}applied property values:
+        {% for apv in applied_property_values %}
+        - name: {{ apv.name }}
+          ref_uuid : {{ apv.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if constraints %}constraints:
+            {% for cons in constraints %}
+            - name: {{ cons.name }}
+              ref_uuid : {{ cons.uuid }}
+            {% endfor %}
+      {% endif %}
+      {% if exchanges %}exchanges:
+            {% for excs in exchanges %}
+            - name: {{  e.name }}
+              ref_uuid : {{ e.uuid }}
+            {% endfor %}
+      {% endif %}
+"""       
         function_exchange_template = """
-    {{type}}
+    - name: {{ name }}
+      type: {{type}}
+      primary_uuid: {{ uuid }}
+      description : {{ description }}
+      source function:
+          - name: {{ source_function }}
+            ref_uuid: {{ source_function_uuid }}
+      target function:
+          - name: {{ target_function }}
+            ref_uuid: {{ target_function_uuid }}
+      {% if involving_fcs %}involving functional chains:
+        {% for fc in involving_fcs %}
+        - name: {{ fc.name }}
+          ref_uuid : {{ fc.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if applied_property_value_groups %}applied property value groups:
+        {% for apvg in applied_property_value_groups %}
+        - name: {{ apvg.name }}
+          ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if exchanges_items %}exchanges items:
+            {% for ei in exchange_items %}
+            - name: {{  ei.name }}
+              ref_uuid : {{ ei.uuid }}
+            {% endfor %}
+      {% endif %}
+      {% if applied_property_values %}applied property values:
+        {% for apv in applied_property_values %}
+        - name: {{ apv.name }}
+          ref_uuid : {{ apv.uuid }}
+        {% endfor %}
+      {% endif %}
+      {% if constraints %}constraints:
+            {% for cons in constraints %}
+            - name: {{ cons.name }}
+              ref_uuid : {{ cons.uuid }}
+            {% endfor %}
+      {% endif %}
+      {% if exchanges %}exchanges:
+            {% for excs in exchanges %}
+            - name: {{  e.name }}
+              ref_uuid : {{ e.uuid }}
+            {% endfor %}
+      {% endif %}
+"""
+        component_exchange_template = """
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
-        source function:
-            source_function_name: {{ source_function }}
-            ref_uuid: {{ source_function_uuid }}
-        target function:
-            target_function_name: {{ target_function }}
-            ref_uuid: {{ target_function_uuid }}
-         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
+        source component:
+        - name: {{ source_component }}
+          ref_uuid: {{ source_function_uuid }}
+        target component:
+        - name: {{ target_component }}
+          ref_uuid: {{ target_function_uuid }}
+          {% if applied_property_value_groups %}applied property value groups:
+          {% for apvg in applied_property_value_groups %}
               - name: {{ apvg.name }}
                 ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
-        {% endif %}
-        {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
-        {% endif %}
-        {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
-        {% endif %}
-        {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+          {% endfor %}
+          {% endif %}
+          {% if exchanges_items %}exchanges items:
+          {% for ei in exchange_items %}
+          - name: {{  ei.name }}
+            ref_uuid : {{ ei.uuid }}
+          {% endfor %}
+          {% endif %}
+          {% if allocated_functional_exchanges %}allocated functional exchanges:
+          {% for fe in allocated_functional_exchanges  %}
+           - name: {{  fe.name }}
+           ref_uuid : {{ fe.uuid }}
+          {% endfor %}
+          {% endif %}
+          {% if applied_property_values %}applied property values:
+          {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+          {% endfor %}
+          {% endif %}
+          {% if constraints %}constraints:
+          {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+          {% endfor %}
+          {% endif %}
+          {% if exchanges %}exchanges:
+          {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+          {% endfor %}
         {% endif %}
 """
         functional_chain_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         involved:
@@ -444,80 +752,76 @@ class CapellaYAMLHandler:
           - name: {{  inv.name }}
             ref_uuid: uuid : {{ inv.uuid }}
         {% endfor %}
-         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
+        {% if applied_property_value_groups %}applied property value groups:
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
             {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+        {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+        {% endfor %}
         {% endif %}
-"""
-
-
-
-        
+""" 
         property_value_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         value :  {{ value }}
 """
         property_value_group_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         property value groups:
         {% for pvg in property_value_groups %}
-          - name: {{  apvg.name }}
-            ref_uuid: uuid : {{ apvg.uuid }}
+        - name: {{  apvg.name }}
+          ref_uuid: uuid : {{ apvg.uuid }}
         {% endfor %}
         property values:
         {% for pv in property_values %}
-          - name: {{  pv.name }}
-            ref_uuid: uuid : {{ pv.uuid }}
+        - name: {{  pv.name }}
+          ref_uuid: uuid : {{ pv.uuid }}
         {% endfor %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         
 """ 
         logical_component_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         is_human : {{ is_human }}
@@ -553,40 +857,40 @@ class CapellaYAMLHandler:
             {% endfor %}
         {% endfor %}
         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+        {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+        {% endfor %}
         {% endif %}
         {% if state_machines %}state machines:
-            {% for sm in state_machines %}
-              - name: {{  sm.name }}
-                ref_uuid : {{ sm.uuid }}
-            {% endfor %}
+        {% for sm in state_machines %}
+          - name: {{  sm.name }}
+            ref_uuid : {{ sm.uuid }}
+        {% endfor %}
         {% endif %}
 """
 
         entity_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         is_human : {{ is_human }}
@@ -603,39 +907,39 @@ class CapellaYAMLHandler:
             ref_uuid : {{ act.uuid }}
         {% endfor %}
         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+        {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+        {% endfor %}
         {% endif %}
         {% if state_machines %}state machines:
-            {% for sm in state_machines %}
-              - name: {{  sm.name }}
-                ref_uuid : {{ sm.uuid }}
-            {% endfor %}
+        {% for sm in state_machines %}
+          - name: {{  sm.name }}
+            ref_uuid : {{ sm.uuid }}
+        {% endfor %}
         {% endif %}
 """
         node_component_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         is_human : {{ is_human }}
@@ -661,34 +965,34 @@ class CapellaYAMLHandler:
             {% endfor %}
         {% endfor %}
         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+        {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+        {% endfor %}
         {% endif %}
 """
 
         function_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         owner :
@@ -698,7 +1002,7 @@ class CapellaYAMLHandler:
         {% for func in child_functions %}
           - name: {{ func.name }}
             ref_uuid : {{ func.uuid }}
-        {% endfor %}
+        {% endfor %}  
         inputs:
         {% for port in inputs %}
           - name: {{ port.name }}
@@ -732,41 +1036,41 @@ class CapellaYAMLHandler:
             {% endfor %}
         {% endfor %}
         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+        {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+        {% endfor %}
         {% endif %}
 """
 
         activity_template = """
-    {{type}}
       - name: {{ name }}
+        type: {{type}}
         primary_uuid: {{ uuid }}
         description : {{ description }}
         owner :
           - name : {{owner_name}}
             ref_uuid : {{owner_uuid}}
         child activities:
-        {% for act in child_sctivities %}
+        {% for act in child_activities %}
           - name: {{ act.name }}
             ref_uuid : {{ act.uuid }}
         {% endfor %}
@@ -803,33 +1107,35 @@ class CapellaYAMLHandler:
             {% endfor %}
         {% endfor %}
         {% if applied_property_value_groups %}applied property value groups:
-            {% for apvg in applied_property_value_groups %}
-              - name: {{ apvg.name }}
-                ref_uuid : {{ apvg.uuid }}
-            {% endfor %}
+        {% for apvg in applied_property_value_groups %}
+          - name: {{ apvg.name }}
+            ref_uuid : {{ apvg.uuid }}
+        {% endfor %}
         {% endif %}
         {% if applied_property_values %}applied property values:
-            {% for apv in applied_property_values %}
-              - name: {{ apv.name }}
-                ref_uuid : {{ apv.uuid }}
-            {% endfor %}
+        {% for apv in applied_property_values %}
+          - name: {{ apv.name }}
+            ref_uuid : {{ apv.uuid }}
+        {% endfor %}
         {% endif %}
         {% if constraints %}constraints:
-            {% for cons in constraints %}
-              - name: {{ cons.name }}
-                ref_uuid : {{ cons.uuid }}
-            {% endfor %}
+        {% for cons in constraints %}
+          - name: {{ cons.name }}
+            ref_uuid : {{ cons.uuid }}
+        {% endfor %}
         {% endif %}
         {% if exchanges %}exchanges:
-            {% for excs in exchanges %}
-              - name: {{  e.name }}
-                ref_uuid : {{ e.uuid }}
-            {% endfor %}
+        {% for excs in exchanges %}
+          - name: {{  e.name }}
+            ref_uuid : {{ e.uuid }}
+        {% endfor %}
         {% endif %}
 """
         # Build the data for the YAML generation
         #print("Type:", obj.__class__.__name__)
-        if obj.__class__.__name__ ==  "LogicalComponent" :    
+        if obj not in self.primary_objects:
+            self.primary_objects.append(obj)
+        if obj.__class__.__name__ ==  "LogicalComponent" or obj.__class__.__name__ ==  "SystemComponent" :    
             data = {
                 "type" : obj.__class__.__name__,
                 "parent_uuid": obj.parent.uuid if obj.parent else None,
@@ -837,6 +1143,7 @@ class CapellaYAMLHandler:
                 "uuid" : obj.uuid,
                 "is_human":obj.is_human,
                 "description" :obj.description,
+                "components" : [{"name": c.name , "uuid": c.uuid} for c in obj.components],
                 "allocated_functions": [{"name": f.name , "uuid": f.uuid} for f in obj.allocated_functions],
                 "ports": [{
                     "name": p.name,
@@ -913,13 +1220,14 @@ class CapellaYAMLHandler:
         
        
         elif obj.__class__.__name__ ==  "SystemFuntion" or obj.__class__.__name__ ==  "LogicalFunction" or obj.__class__.__name__ ==  "PhysicalFunction":    
+
             data = {
                 "type" : obj.__class__.__name__,
                 "name": obj.name,
                 "uuid" : obj.uuid,
                 "description" :obj.description,
-                "owner_name" :obj.owner.name,
-                "owner_uuid" :obj.owner.uuid,
+                "owner_name" :obj.owner.name if obj.owner else None,
+                "owner_uuid" :obj.owner.uuid if obj.owner else None,
                 "child_functions" :[{"name": func.name, "uuid": func.uuid} for func in obj.functions],
                 "inputs": [{
                     "name": p.name,
@@ -943,10 +1251,9 @@ class CapellaYAMLHandler:
     
             # Render the template
             template = Template(function_template)
-
- 
             self.yaml_content = self.yaml_content + template.render(data)
-
+            
+ 
 
         elif obj.__class__.__name__ ==  "OperationalActivity" : 
             data = {
@@ -954,8 +1261,8 @@ class CapellaYAMLHandler:
                 "name": obj.name,
                 "uuid" : obj.uuid,
                 "description" :obj.description,
-                "owner_name" :obj.owner.name,
-                "owner_uuid" :obj.owner.uuid,
+                "owner_name" :obj.owner.name if obj.owner else None,
+                "owner_uuid" :obj.owner.uuid if obj.owner else None,
                 "child activities" :[{"name": func.name, "uuid": func.uuid} for func in obj.activities],
                 "inputs": [{
                     "name": p.name,
@@ -983,8 +1290,34 @@ class CapellaYAMLHandler:
  
             self.yaml_content = self.yaml_content + template.render(data)
 # Build the data for the YAML generation
-        
-        elif obj.__class__.__name__ ==  "FunctionalExchange" :    
+        elif obj.__class__.__name__ ==  "Interaction" :
+          
+            data = {
+                "type" : obj.__class__.__name__,
+                "name": obj.name,
+                "uuid" : obj.uuid,
+                "description" :obj.description,
+                "source_activity": obj.source.owner.name,
+                "source_activity_uuid": obj.source.owner.uuid,
+                "target_activity": obj.target.owner.name, 
+                "target_activity_uuid": obj.target.owner.uuid ,
+                "involving_ops" :[{"name": op.name, "uuid": op.uuid} for op in obj.involving_operational_processes ],
+                "exchange_items": [{"name": ei.name, "uuid": ei.uuid} for ei in obj.exchange_items],
+                "applied_property_value_groups": [{"name": apvg.name, "uuid": apvg.uuid} for apvg in obj.applied_property_value_groups],
+                "applied_property_values": [{"name": apv.name, "uuid": apv.uuid} for apv in obj.applied_property_values],
+                "constraints": [{"name": cons.name, "uuid": cons.uuid} for cons in obj.constraints]
+            }
+    
+            # Add referenced objects for expansion
+            self._track_referenced_objects(obj)
+    
+            # Render the template
+            template = Template(interaction_template)
+
+ 
+            self.yaml_content = self.yaml_content + template.render(data)        
+        elif obj.__class__.__name__ ==  "FunctionalExchange" : 
+
             data = {
                 "type" : obj.__class__.__name__,
                 "name": obj.name,
@@ -994,6 +1327,8 @@ class CapellaYAMLHandler:
                 "source_function_uuid": obj.source.owner.uuid,
                 "target_function": obj.target.owner.name, 
                 "target_function_uuid": obj.target.owner.uuid ,
+                "involving_fcs" :[{"name": fc.name, "uuid": fc.uuid} for fc in obj.involving_functional_chains ],
+                "exchange_items": [{"name": ei.name, "uuid": ei.uuid} for ei in obj.exchange_items],
                 "applied_property_value_groups": [{"name": apvg.name, "uuid": apvg.uuid} for apvg in obj.applied_property_value_groups],
                 "applied_property_values": [{"name": apv.name, "uuid": apv.uuid} for apv in obj.applied_property_values],
                 "constraints": [{"name": cons.name, "uuid": cons.uuid} for cons in obj.constraints]
@@ -1007,7 +1342,33 @@ class CapellaYAMLHandler:
 
  
             self.yaml_content = self.yaml_content + template.render(data)
+        elif obj.__class__.__name__ ==  "ComponentExchange" : 
+            data = {
+                "type" : obj.__class__.__name__,
+                "name": obj.name,
+                "uuid" : obj.uuid,
+                "description" :obj.description,
+                "source_component": obj.source.owner.name,
+                "source_component_uuid": obj.source.owner.uuid,
+                "target_component": obj.target.owner.name, 
+                "target_component_uuid": obj.target.owner.uuid ,
+                "exchange_items": [{"name": ei.name, "uuid": ei.uuid} for ei in obj.exchange_items],
+                "allocated_functional_exchanges": [{"name": fe.name, "uuid": fe.uuid} for fe in obj.allocated_functional_exchanges],
+                "applied_property_value_groups": [{"name": apvg.name, "uuid": apvg.uuid} for apvg in obj.applied_property_value_groups],
+                "applied_property_values": [{"name": apv.name, "uuid": apv.uuid} for apv in obj.applied_property_values],
+                "constraints": [{"name": cons.name, "uuid": cons.uuid} for cons in obj.constraints]
+            }
+    
+            # Add referenced objects for expansion
+            self._track_referenced_objects(obj)
+    
+            # Render the template
+            template = Template(component_exchange_template)
 
+ 
+            self.yaml_content = self.yaml_content + template.render(data)
+
+        
         elif obj.__class__.__name__  ==  "PhysicalComponent" and obj.nature  ==  "NODE":  
                 data = {
                     "type" : obj.__class__.__name__,
@@ -1222,9 +1583,66 @@ class CapellaYAMLHandler:
             template = Template(transition_template)
             self.yaml_content = self.yaml_content + template.render(data)           
                       
-        
+        elif obj.__class__.__name__ ==  "ExchangeItem" :   
+            data = {
+                "type" : obj.__class__.__name__,
+                "name": obj.name,
+                "uuid" : obj.uuid,
+                "description" :obj.description,
+                "elements": [{"name": e.name, "uuid": e.uuid} for e in obj.elements],
+                "applied_property_value_groups": [{"name": apvg.name, "uuid": apvg.uuid} for apvg in obj.applied_property_value_groups],
+                "applied_property_values": [{"name": apv.name, "uuid": apv.uuid} for apv in obj.applied_property_values],
+                "property_value_groups": [{"name": pvg.name, "uuid": pvg.uuid} for pvg in obj.property_value_groups],
+                "property_values": [{"name": pv.name, "uuid": pv.uuid} for pv in obj.property_values],
+                "constraints": [{"name": cons.name, "uuid": cons.uuid} for cons in obj.constraints]
+            }
+    
+            # Add referenced objects for expansion
+            self._track_referenced_objects(obj)
+    
+            # Render the template
+            template = Template(exchangeitem_template)
+            self.yaml_content = self.yaml_content + template.render(data)           
+
+        elif obj.__class__.__name__ ==  "ExchangeItemElement" :   
+            #print(obj)
+            data = {
+                "type" : obj.__class__.__name__,
+                "name": obj.name,
+                "uuid" : obj.uuid,
+                "description" :obj.description,
+                "abstract_type_name" : obj.abstract_type.name,
+                "abstract_type_uuid" : obj.abstract_type.uuid,
+                "applied_property_value_groups": [{"name": apvg.name, "uuid": apvg.uuid} for apvg in obj.applied_property_value_groups],
+                "applied_property_values": [{"name": apv.name, "uuid": apv.uuid} for apv in obj.applied_property_values],
+                "property_value_groups": [{"name": pvg.name, "uuid": pvg.uuid} for pvg in obj.property_value_groups],
+                "property_values": [{"name": pv.name, "uuid": pv.uuid} for pv in obj.property_values],
+                "constraints": [{"name": cons.name, "uuid": cons.uuid} for cons in obj.constraints]
+            }
+    
+            # Add referenced objects for expansion
+            self._track_referenced_objects(obj)
+    
+            # Render the template
+            template = Template(exchangeitemelement_template)
+            self.yaml_content = self.yaml_content + template.render(data)    
+        elif obj.__class__.__name__ ==  "Traceability_Artifact" :   
+            #print("This is a Pub4C Artifact",obj)   
+            data = {
+                "type" : obj.__class__.__name__,
+                "name": obj.name,
+                "uuid":obj.uuid,
+                "url" :obj.url,
+                "artifact_links": [{  "name": link.link_type.name, "model_element_uuid": link.model_element_uuid} for link in obj.artifact_links],
+            }
+            # Render the template
+            template = Template( Traceability_artifact)
+            self.yaml_content = self.yaml_content + template.render(data)
+
+
+            
         else :
-            print(obj.name, "is be formatted with default properties, its type", obj.__class__.__name__," is not supported with tailored processiong.")
+            #print(obj.name, "is be formatted with default properties, its type", obj.__class__.__name__," is not supported with tailored processiong.")
             #print(obj)
             data = {
                 "type" : obj.__class__.__name__,
